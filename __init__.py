@@ -7,7 +7,8 @@ sys.path.append(now_dir)
 from huggingface_hub import snapshot_download
 echomimicv2_models_dir = osp.join(aifsh_dir,"EchoMimicV2")
 vae_dir = osp.join(echomimicv2_models_dir,"sd-vae-ft-mse")
-image_encoder_dir = osp.join(echomimicv2_models_dir,"sd-image-variations-diffusers")
+base_model_dir = osp.join(echomimicv2_models_dir,"sd-image-variations-diffusers")
+image_encoder_dir = osp.join(base_model_dir,"image_encoder")
 
 import torch
 import torchaudio
@@ -24,7 +25,10 @@ from echomimicv2.src.pipelines.pipeline_echomimicv2 import EchoMimicV2Pipeline
 from echomimicv2.src.utils.util import save_videos_grid
 from echomimicv2.src.models.pose_encoder import PoseEncoder
 from echomimicv2.src.utils.dwpose_util import draw_pose_select_v2
-from moviepy import VideoFileClip, AudioFileClip
+try:
+    from moviepy import VideoFileClip, AudioFileClip
+except:
+    from moviepy.editor import VideoFileClip, AudioFileClip
 
 class EchoMimicV2Node:
     def __init__(self) -> None:
@@ -37,11 +41,9 @@ class EchoMimicV2Node:
                               local_dir=vae_dir,
                               allow_patterns=["*json","*safetensors"])
             
-        if not osp.exists(osp.join(image_encoder_dir,"unet/diffusion_pytorch_model.bin")):
+        if not osp.exists(osp.join(base_model_dir,"unet/diffusion_pytorch_model.bin")):
             snapshot_download(repo_id="lambdalabs/sd-image-variations-diffusers",
-                              local_dir=image_encoder_dir,)
-        snapshot_download(repo_id="lambdalabs/sd-image-variations-diffusers",
-                              local_dir=image_encoder_dir,)
+                              local_dir=base_model_dir,)
         
     @classmethod
     def INPUT_TYPES(s):
@@ -111,7 +113,7 @@ class EchoMimicV2Node:
 
             ## reference net init
             reference_unet = UNet2DConditionModel.from_pretrained(
-                image_encoder_dir,
+                base_model_dir,
                 subfolder="unet",
             ).to(dtype=weight_dtype, device=device)
             reference_unet.load_state_dict(
@@ -119,7 +121,7 @@ class EchoMimicV2Node:
             )
             ## denoising net init
             denoising_unet = EMOUNet3DConditionModel.from_pretrained_2d(
-                image_encoder_dir,
+                base_model_dir,
                 osp.join(echomimicv2_models_dir,"motion_module.pth"),
                 subfolder="unet",
                 unet_additional_kwargs=infer_config.unet_additional_kwargs,
@@ -151,7 +153,7 @@ class EchoMimicV2Node:
                 pose_encoder=pose_net,
                 scheduler=scheduler,
             )
-            self.pose_encoder = pose_net
+            # self.pose_encoder = pose_net
 
             self.pipe = self.pipe.to(device, dtype=weight_dtype)
             
@@ -192,7 +194,10 @@ class EchoMimicV2Node:
             pose_list.append(torch.Tensor(np.array(tgt_musk_pil)).to(dtype=weight_dtype, device=device).permute(2,0,1) / 255.0)
         
         poses_tensor = torch.stack(pose_list, dim=1).unsqueeze(0)
-        audio_clip = audio_clip.with_subclip(0,L / fps)
+        try:
+            audio_clip = audio_clip.with_subclip(0,L / fps)
+        except:
+            audio_clip = audio_clip.set_duration(0,L / fps)
         video = self.pipe(
             img_pil,
             inputs_dict['audio'],

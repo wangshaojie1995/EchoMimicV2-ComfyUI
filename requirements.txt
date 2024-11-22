@@ -6,3 +6,4 @@ ffmpeg-python
 av
 matplotlib
 accelerate
+mediapipe

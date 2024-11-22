@@ -53,7 +53,6 @@ class EchoMimicV2Pipeline(DiffusionPipeline):
         text_encoder=None,
     ):
         super().__init__()
-
         self.register_modules(
             vae=vae,
             reference_unet=reference_unet,
@@ -66,6 +65,7 @@ class EchoMimicV2Pipeline(DiffusionPipeline):
             text_encoder=text_encoder,
             # audio_feature_mapper=audio_feature_mapper
         )
+        
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
         self.ref_image_processor = VaeImageProcessor(
             vae_scale_factor=self.vae_scale_factor, do_convert_rgb=True
@@ -485,7 +485,7 @@ class EchoMimicV2Pipeline(DiffusionPipeline):
             context_frames
         )
         
-        pose_enocder_tensor = self.pose_enocder(poses_tensor)
+        pose_encoder_tensor = self.pose_encoder(poses_tensor)
         
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
@@ -569,7 +569,7 @@ class EchoMimicV2Pipeline(DiffusionPipeline):
                     audio_latents_cond = torch.cat([audio_fea_final[:, c] for c in new_context]).to(device)
                                         
                     audio_latents = torch.cat([torch.zeros_like(audio_latents_cond), audio_latents_cond], 0)
-                    pose_latents_cond = torch.cat([pose_enocder_tensor[:, :, c] for c in new_context]).to(device)
+                    pose_latents_cond = torch.cat([pose_encoder_tensor[:, :, c] for c in new_context]).to(device)
                     pose_latents = torch.cat([torch.zeros_like(pose_latents_cond), pose_latents_cond], 0)
                     
                     latent_model_input = self.scheduler.scale_model_input(
