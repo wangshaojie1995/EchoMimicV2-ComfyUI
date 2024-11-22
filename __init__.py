@@ -66,6 +66,9 @@ class EchoMimicV2Node:
                 "fps":("INT",{
                     "default":24
                 }),
+                "if_low_varm":("BOOLEAN",{
+                    "default":False
+                }),
                 "store_in_varm":("BOOLEAN",{
                     "default":True
                 }),
@@ -93,11 +96,11 @@ class EchoMimicV2Node:
         nw,nh = int(iw*scale),int(ih*scale)
         image = source_img.resize((nw,nh))
         new_image = Image.new("RGB",target_size,color=(124,252,0))
-        new_image.paste(image,box=((w-nw)//2,(h-nh)//2),mask=image)
+        new_image.paste(image,box=((w-nw)//2,(h-nh)//2))
         return new_image
 
-    def gen_video(self,refimg,driving_audio,steps,cfg,
-                  context_frames,context_overlap,fps,store_in_varm,seed):
+    def gen_video(self,refimg,driving_audio,steps,cfg,context_frames,
+                  context_overlap,fps,if_low_varm,store_in_varm,seed):
         weight_dtype = torch.float16
         device = "cuda" if torch.cuda.is_available() else "cpu"
         infer_config = OmegaConf.load(osp.join(now_dir,"echomimicv2/configs/inference/inference_v2.yaml"))
@@ -154,7 +157,9 @@ class EchoMimicV2Node:
                 scheduler=scheduler,
             )
             # self.pose_encoder = pose_net
-
+            if if_low_varm:
+                self.pipe.enable_vae_slicing()
+                self.pipe.enable_sequential_cpu_offload()
             self.pipe = self.pipe.to(device, dtype=weight_dtype)
             
         generator = torch.manual_seed(seed)
@@ -180,6 +185,7 @@ class EchoMimicV2Node:
         print('Audio:', inputs_dict['audio'])
         audio_clip = AudioFileClip(inputs_dict['audio'])
         L = min(int(audio_clip.duration * fps), len(os.listdir(inputs_dict['pose'])))
+        print(f"the max frame num:{L}")
         pose_list = []
         for index in range(start_idx, start_idx + L):
             tgt_musk = np.zeros((W, H, 3)).astype('uint8')
@@ -197,7 +203,7 @@ class EchoMimicV2Node:
         try:
             audio_clip = audio_clip.with_subclip(0,L / fps)
         except:
-            audio_clip = audio_clip.set_duration(0,L / fps)
+            audio_clip = audio_clip.set_duration(L / fps)
         video = self.pipe(
             img_pil,
             inputs_dict['audio'],
@@ -222,9 +228,12 @@ class EchoMimicV2Node:
             fps=fps,
         )
         video_clip_sig = VideoFileClip(tmp_file)
-        video_clip_sig = video_clip_sig.set_audio(audio_clip)
-        outfile = osp.join(save_dir,Path(img.name).stem+"_"+Path(audio.name).stem+".mp4")
-        video_clip_sig.write_videofile(outfile, codec="libx264", audio_codec="aac", threads=2)
+        try:
+            video_clip_sig = video_clip_sig.set_audio(audio_clip)
+        except:
+            video_clip_sig = video_clip_sig.with_audio(audio_clip)
+        outfile = osp.join(out_dir,Path(img.name).stem+"_"+Path(audio.name).stem+".mp4")
+        video_clip_sig.write_videofile(outfile,fps=fps,codec="libx264", audio_codec="aac", threads=2)
         if not store_in_varm:
             self.pipe = None
             torch.cuda.empty_cache()
