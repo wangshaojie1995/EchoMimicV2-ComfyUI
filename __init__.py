@@ -30,6 +30,7 @@ try:
 except:
     from moviepy.editor import VideoFileClip, AudioFileClip
 
+
 class EchoMimicV2Node:
     def __init__(self) -> None:
         self.pipe = None
