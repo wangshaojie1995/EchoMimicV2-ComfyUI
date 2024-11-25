@@ -85,13 +85,13 @@ class EchoMimicV2Pipeline(DiffusionPipeline):
 
         device = torch.device(f"cuda:{gpu_id}")
 
-        for cpu_offloaded_model in [self.unet, self.text_encoder, self.vae]:
+        for cpu_offloaded_model in [self.reference_unet, self.vae]:
             if cpu_offloaded_model is not None:
                 cpu_offload(cpu_offloaded_model, device)
 
     @property
     def _execution_device(self):
-        if self.device != torch.device("meta") or not hasattr(self.unet, "_hf_hook"):
+        if self.device != torch.device("meta") or not hasattr(self.reference_unet, "_hf_hook"):
             return self.device
         for module in self.unet.modules():
             if (

@@ -20,7 +20,10 @@ from pathlib import Path
 from PIL import Image
 from tqdm import tqdm
 from omegaconf import OmegaConf
-from torchao.quantization import quantize_,int8_weight_only
+if sys.platform != "win32":
+    from torchao.quantization import quantize_,int8_weight_only
+else:
+    from .fp8_optimization import convert_fp8_linear
 from diffusers import AutoencoderKL,DDIMScheduler
 from multiprocessing.pool import ThreadPool
 from echomimicv2.dwpose import DWposeDetector
@@ -30,7 +33,7 @@ from echomimicv2.src.models.whisper.audio2feature import load_audio_model
 from echomimicv2.src.pipelines.pipeline_echomimicv2 import EchoMimicV2Pipeline
 from echomimicv2.src.utils.util import save_videos_grid
 from echomimicv2.src.models.pose_encoder import PoseEncoder
-from echomimic_v2.src.utils.img_utils import save_video_from_cv2_list
+from echomimicv2.src.utils.img_utils import save_video_from_cv2_list
 from echomimicv2.src.utils.dwpose_util import draw_pose_select_v2
 device = "cuda" if torch.cuda.is_available() else "cpu"
 try:
@@ -440,8 +443,12 @@ class EchoMimicV2Node:
                 torch.load(osp.join(echomimicv2_models_dir,"reference_unet.pth"), map_location="cpu"),
             )
             if if_low_varm:
-                quantize_(vae, int8_weight_only())
-                quantize_(reference_unet,int8_weight_only())
+                try:
+                    quantize_(vae, int8_weight_only())
+                    quantize_(reference_unet,int8_weight_only())
+                except:
+                    convert_fp8_linear(vae,torch.bfloat16)
+                    convert_fp8_linear(reference_unet,torch.bfloat16)
             ## denoising net init
             denoising_unet = EMOUNet3DConditionModel.from_pretrained_2d(
                 base_model_dir,
@@ -479,7 +486,7 @@ class EchoMimicV2Node:
             # self.pose_encoder = pose_net
             if if_low_varm:
                 self.pipe.enable_vae_slicing()
-                self.pipe.enable_sequential_cpu_offload()
+                # self.pipe.enable_sequential_cpu_offload()
             self.pipe = self.pipe.to(device, dtype=weight_dtype)
             
         generator = torch.manual_seed(seed)
