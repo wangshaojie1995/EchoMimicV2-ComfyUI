@@ -484,8 +484,8 @@ class EchoMimicV2Node:
                 scheduler=scheduler,
             )
             # self.pose_encoder = pose_net
-            if if_low_varm:
-                self.pipe.enable_vae_slicing()
+            #if if_low_varm:
+                # self.pipe.enable_vae_slicing()
                 # self.pipe.enable_sequential_cpu_offload()
             self.pipe = self.pipe.to(device, dtype=weight_dtype)
             
