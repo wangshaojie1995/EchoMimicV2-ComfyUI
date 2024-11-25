@@ -325,6 +325,10 @@ class EchoMimicV2PoseNode:
            pose_dir =  osp.join(now_dir,"echomimicv2/pose/01")
            return (pose_dir, )
         os.makedirs(save_dir,exist_ok=True)
+        pose_dir = osp.join(save_dir,"DWPose/pose",pose)
+        save_path = osp.join(save_dir,"DWPose","pose_"+Path(driving_pose).name)
+        if osp.exists(pose_dir) and len(os.listdir(pose_dir)) > 24:
+            return (pose_dir,save_path,)
         with tempfile.NamedTemporaryFile(suffix=".mp4",delete=False,dir=save_dir) as f:
             convert_fps(driving_pose, f.name)
         
@@ -336,14 +340,13 @@ class EchoMimicV2PoseNode:
         res_params = get_pose_params(detected_poses, 768,height, width)
         
         # 存储Pose参数
-        pose_dir = osp.join(save_dir,"DWPose/pose",pose)
         save_pose_params(detected_poses, res_params['pose_params'], res_params['draw_pose_params'], pose_dir)
         
         # 存储截取视频
         processed_video_path = osp.join(save_dir,"DWPose",Path(driving_pose).name)
         video_frame_crop = save_processed_video(ori_frames, res_params['video_params'],processed_video_path, 768)
-        save_path = osp.join(save_dir,"DWPose","pose_"+Path(driving_pose).name)
-        draw_pose_video(pose_dir, save_path, ori_frames=video_frame_crop)
+        
+        draw_pose_video(pose_dir, save_path, 768,ori_frames=video_frame_crop)
         return (pose_dir,save_path,)
 
 

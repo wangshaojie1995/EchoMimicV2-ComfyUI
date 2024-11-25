@@ -1,18 +1,45 @@
 {
-  "last_node_id": 4,
-  "last_link_id": 3,
+  "last_node_id": 5,
+  "last_link_id": 4,
   "nodes": [
+    {
+      "id": 4,
+      "type": "PreViewVideo",
+      "pos": {
+        "0": 965.6000366210938,
+        "1": 212
+      },
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 3
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreViewVideo"
+      },
+      "widgets_values": []
+    },
     {
       "id": 2,
       "type": "LoadImage",
       "pos": {
-        "0": 98,
-        "1": 114
+        "0": 81,
+        "1": 30
       },
-      "size": [
-        315,
-        314
-      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
       "flags": {},
       "order": 0,
       "mode": 0,
@@ -43,8 +70,8 @@
       "id": 3,
       "type": "LoadAudio",
       "pos": {
-        "0": 98,
-        "1": 511
+        "0": 110,
+        "1": 608
       },
       "size": {
         "0": 315,
@@ -76,15 +103,15 @@
       "id": 1,
       "type": "EchoMimicV2Node",
       "pos": {
-        "0": 526,
-        "1": 223
+        "0": 614,
+        "1": 78
       },
       "size": {
         "0": 315,
-        "1": 270
+        "1": 290
       },
       "flags": {},
-      "order": 2,
+      "order": 3,
       "mode": 0,
       "inputs": [
         {
@@ -96,6 +123,11 @@
           "name": "driving_audio",
           "type": "AUDIO",
           "link": 2
+        },
+        {
+          "name": "pose",
+          "type": "POSE",
+          "link": 4
         }
       ],
       "outputs": [
@@ -119,35 +151,52 @@
         24,
         false,
         true,
-        42,
+        1478,
         "randomize"
       ]
     },
     {
-      "id": 4,
-      "type": "PreViewVideo",
+      "id": 5,
+      "type": "EchoMimicV2PoseNode",
       "pos": {
-        "0": 965.6000366210938,
-        "1": 212
+        "0": 574,
+        "1": 587
       },
       "size": {
-        "0": 210,
-        "1": 26
+        "0": 315,
+        "1": 78
       },
       "flags": {},
-      "order": 3,
+      "order": 2,
       "mode": 0,
       "inputs": [
         {
-          "name": "video",
+          "name": "driving_pose",
           "type": "VIDEO",
-          "link": 3
+          "link": null,
+          "shape": 7
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "POSE",
+          "type": "POSE",
+          "links": [
+            4
+          ]
+        },
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
       "properties": {
-        "Node name for S&R": "PreViewVideo"
-      }
+        "Node name for S&R": "EchoMimicV2PoseNode"
+      },
+      "widgets_values": [
+        "default"
+      ]
     }
   ],
   "links": [
@@ -174,16 +223,24 @@
       4,
       0,
       "VIDEO"
+    ],
+    [
+      4,
+      5,
+      0,
+      1,
+      2,
+      "POSE"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 1,
+      "scale": 0.9090909090909091,
       "offset": [
-        0,
-        0
+        136.59995117187495,
+        33.720007324218834
       ]
     }
   },

@@ -102,7 +102,7 @@ class DWposeDetector:
             hands = candidate[:,92:113]
             hands = np.vstack([hands, candidate[:,113:]])
             hands_score = subset[:,92:113]
-            hands_score = np.vstack(hands_score,subset[:,113:])
+            hands_score = np.vstack([hands_score,subset[:,113:]])
             
             res = dict(bodies=dict(candidate=body, score=score),
                        faces=faces,
