@@ -381,6 +381,10 @@ class EchoMimicV2Node:
                 "pose":("POSE",),
                 "duration":("INT",{
                     "default":120,
+                    "step":12,
+                    "min":12,
+                    "max":240,
+                    "display":"number",
                     "tooltip":"if your frames number too large,this can split it"
                 }),
                 "steps":("INT",{
