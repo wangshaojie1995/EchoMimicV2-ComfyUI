@@ -24,6 +24,7 @@ if sys.platform != "win32":
     from torchao.quantization import quantize_,int8_weight_only
 else:
     from .fp8_optimization import convert_fp8_linear
+from .fp8_optimization import convert_fp8_linear
 from diffusers import AutoencoderKL,DDIMScheduler
 from multiprocessing.pool import ThreadPool
 from echomimicv2.dwpose import DWposeDetector
@@ -308,6 +309,9 @@ class EchoMimicV2PoseNode:
                     "default":"default",
                     "tooltip":f"name your pose or use the pose propossed in {pose_dir}"
                 }),
+                "if_draw_ori_frame":("BOOLEAN",{
+                    "default":False,
+                })
             },
             "optional":{
                 "driving_pose":("VIDEO",),
@@ -322,7 +326,7 @@ class EchoMimicV2PoseNode:
 
     CATEGORY = "AIFSH_EchoMimicV2"
 
-    def gen_pose(self,pose,driving_pose=None):
+    def gen_pose(self,pose,if_draw_ori_frame,driving_pose=None):
         ## 
         if pose == "default":
            pose_dir =  osp.join(now_dir,"echomimicv2/pose/01")
@@ -349,7 +353,7 @@ class EchoMimicV2PoseNode:
         processed_video_path = osp.join(save_dir,"DWPose",Path(driving_pose).name)
         video_frame_crop = save_processed_video(ori_frames, res_params['video_params'],processed_video_path, 768)
         
-        draw_pose_video(pose_dir, save_path, 768,ori_frames=video_frame_crop)
+        draw_pose_video(pose_dir, save_path, 768,ori_frames=video_frame_crop if if_draw_ori_frame else None)
         return (pose_dir,save_path,)
 
 
@@ -375,6 +379,10 @@ class EchoMimicV2Node:
                 "refimg":("IMAGE",),
                 "driving_audio":("AUDIO",),
                 "pose":("POSE",),
+                "duration":("INT",{
+                    "default":120,
+                    "tooltip":"if your frames number too large,this can split it"
+                }),
                 "steps":("INT",{
                     "default":30
                 }),
@@ -423,7 +431,7 @@ class EchoMimicV2Node:
         new_image.paste(image,box=((w-nw)//2,(h-nh)//2))
         return new_image
 
-    def gen_video(self,refimg,driving_audio,pose,steps,cfg,context_frames,
+    def gen_video(self,refimg,driving_audio,pose,duration,steps,cfg,context_frames,
                   context_overlap,fps,if_low_varm,store_in_varm,seed):
         weight_dtype = torch.float16
         infer_config = OmegaConf.load(osp.join(now_dir,"echomimicv2/configs/inference/inference_v2.yaml"))
@@ -443,12 +451,16 @@ class EchoMimicV2Node:
                 torch.load(osp.join(echomimicv2_models_dir,"reference_unet.pth"), map_location="cpu"),
             )
             if if_low_varm:
+                '''
                 try:
                     quantize_(vae, int8_weight_only())
                     quantize_(reference_unet,int8_weight_only())
                 except:
                     convert_fp8_linear(vae,torch.bfloat16)
                     convert_fp8_linear(reference_unet,torch.bfloat16)
+                '''
+                convert_fp8_linear(vae,torch.bfloat16)
+                convert_fp8_linear(reference_unet,torch.bfloat16)
             ## denoising net init
             denoising_unet = EMOUNet3DConditionModel.from_pretrained_2d(
                 base_model_dir,
@@ -514,43 +526,60 @@ class EchoMimicV2Node:
         num_pose_files = len(os.listdir(inputs_dict['pose'])) # Total number of pose files (indices 0 to 335)
         L = int(audio_clip.duration * fps)
         print(f"the max frame num:{L}")
-        pose_list = []
-        for index in range(L):
-            file_index = index % num_pose_files
-            tgt_musk = np.zeros((W, H, 3)).astype('uint8')
-            tgt_musk_path = os.path.join(inputs_dict['pose'], "{}.npy".format(file_index))
-            detected_pose = np.load(tgt_musk_path, allow_pickle=True).tolist()
-            imh_new, imw_new, rb, re, cb, ce = detected_pose['draw_pose_params']
-            im = draw_pose_select_v2(detected_pose, imh_new, imw_new, ref_w=800)
-            im = np.transpose(np.array(im),(1, 2, 0))
-            tgt_musk[rb:re,cb:ce,:] = im
+        video_sig_list = []
+        ## 分段策略处理长视频
+        for i in tqdm(range(0,L,duration)):
+            pose_list = []
+            if i+duration >= L:
+                j = L
+            else:
+                j = i + duration
+            print(f"current inference from {i} to {j} frames")
+            for index in range(i,j):
+                file_index = index % num_pose_files
+                tgt_musk = np.zeros((W, H, 3)).astype('uint8')
+                tgt_musk_path = os.path.join(inputs_dict['pose'], "{}.npy".format(file_index))
+                detected_pose = np.load(tgt_musk_path, allow_pickle=True).tolist()
+                imh_new, imw_new, rb, re, cb, ce = detected_pose['draw_pose_params']
+                im = draw_pose_select_v2(detected_pose, imh_new, imw_new, ref_w=800)
+                im = np.transpose(np.array(im),(1, 2, 0))
+                tgt_musk[rb:re,cb:ce,:] = im
 
-            tgt_musk_pil = Image.fromarray(np.array(tgt_musk)).convert('RGB')
-            pose_list.append(torch.Tensor(np.array(tgt_musk_pil)).to(dtype=weight_dtype, device=device).permute(2,0,1) / 255.0)
-        
-        poses_tensor = torch.stack(pose_list, dim=1).unsqueeze(0)
-        try:
-            audio_clip = audio_clip.with_subclip(0,L / fps)
-        except:
-            audio_clip = audio_clip.set_duration(L / fps)
-        video = self.pipe(
-            img_pil,
-            inputs_dict['audio'],
-            poses_tensor[:,:,:L,...],
-            W,
-            H,
-            L,
-            steps,
-            cfg,
-            generator=generator,
-            context_frames=context_frames,
-            fps=fps,
-            context_overlap=context_overlap
-        ).videos
-        video_sig = video[:, :, :L, :, :]
+                tgt_musk_pil = Image.fromarray(np.array(tgt_musk)).convert('RGB')
+                pose_list.append(torch.Tensor(np.array(tgt_musk_pil)).to(dtype=weight_dtype, device=device).permute(2,0,1) / 255.0)
+            
+            poses_tensor = torch.stack(pose_list, dim=1).unsqueeze(0)
+            try:
+                audio_clip = audio_clip.with_subclip(0,L / fps)
+            except:
+                audio_clip = audio_clip.set_duration(L / fps)
+            video = self.pipe(
+                img_pil,
+                inputs_dict['audio'],
+                poses_tensor[:,:,:j-i,...],
+                W,
+                H,
+                j-i,
+                steps,
+                cfg,
+                generator=generator,
+                context_frames=context_frames,
+                fps=fps,
+                context_overlap=context_overlap
+            ).videos
+            video_sig = video[:, :, :j-i, :, :]
+            video_sig_list.append(video_sig)
+            i_j_tmp_file = osp.join(save_dir,f"{i}_{j}_{Path(img.name).stem}.mp4")
+            save_videos_grid(
+                video_sig,
+                i_j_tmp_file,
+                n_rows=1,
+                fps=fps,
+            )
+        res_video_sig = torch.cat(video_sig_list,dim=2)[:, :, :L, :, :]
         tmp_file = osp.join(save_dir,Path(img.name).stem+".mp4")
         save_videos_grid(
-            video_sig,
+            res_video_sig,
             tmp_file,
             n_rows=1,
             fps=fps,
