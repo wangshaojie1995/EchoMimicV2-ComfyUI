@@ -264,7 +264,7 @@ def resize_and_pad(img, max_size):
     return img_new
 
 
-def save_processed_video(ori_frames, video_params, save_path, max_size):
+def save_processed_video(ori_frames, video_params, save_path, max_size,fps=24.0):
     h_min_real, h_max_real, w_min_real, w_max_real = video_params
     video_frame_crop = []
     for img in ori_frames:
@@ -274,7 +274,7 @@ def save_processed_video(ori_frames, video_params, save_path, max_size):
     save_video_from_cv2_list(video_frame_crop, save_path, fps=24.0, rgb2bgr=True)
     return video_frame_crop
 
-def draw_pose_video(pose_params_path, save_path, max_size, ori_frames=None):
+def draw_pose_video(pose_params_path, save_path, max_size, ori_frames=None,fps=24.0):
     pose_files = os.listdir(pose_params_path)
      # 生成Pose图cd pro 
     output_pose_img = []
@@ -309,6 +309,9 @@ class EchoMimicV2PoseNode:
                     "default":"default",
                     "tooltip":f"name your pose or use the pose propossed in {pose_dir}"
                 }),
+                "tgt_fps":("INT",{
+                    "default":24
+                }),
                 "if_draw_ori_frame":("BOOLEAN",{
                     "default":False,
                 })
@@ -326,7 +329,7 @@ class EchoMimicV2PoseNode:
 
     CATEGORY = "AIFSH_EchoMimicV2"
 
-    def gen_pose(self,pose,if_draw_ori_frame,driving_pose=None):
+    def gen_pose(self,pose,tgt_fps,if_draw_ori_frame,driving_pose=None):
         ## 
         if pose == "default":
            pose_dir =  osp.join(now_dir,"echomimicv2/pose/01")
@@ -334,10 +337,11 @@ class EchoMimicV2PoseNode:
         os.makedirs(save_dir,exist_ok=True)
         pose_dir = osp.join(save_dir,"DWPose/pose",pose)
         save_path = osp.join(save_dir,"DWPose","pose_"+Path(driving_pose).name)
-        if osp.exists(pose_dir) and len(os.listdir(pose_dir)) > 24:
-            return (pose_dir,save_path,)
+        if osp.exists(pose_dir) and len(os.listdir(pose_dir)) > tgt_fps:
+            pose = dict(pose_dir=pose_dir,tgt_fps=tgt_fps)
+            return (pose,save_path,)
         with tempfile.NamedTemporaryFile(suffix=".mp4",delete=False,dir=save_dir) as f:
-            convert_fps(driving_pose, f.name)
+            convert_fps(driving_pose, f.name,tgt_fps)
         
         # 提取Pose
         detected_poses, height, width, ori_frames = get_video_pose(f.name, max_frame=None)
@@ -351,10 +355,11 @@ class EchoMimicV2PoseNode:
         
         # 存储截取视频
         processed_video_path = osp.join(save_dir,"DWPose",Path(driving_pose).name)
-        video_frame_crop = save_processed_video(ori_frames, res_params['video_params'],processed_video_path, 768)
+        video_frame_crop = save_processed_video(ori_frames, res_params['video_params'],processed_video_path, 768,fps=tgt_fps)
         
-        draw_pose_video(pose_dir, save_path, 768,ori_frames=video_frame_crop if if_draw_ori_frame else None)
-        return (pose_dir,save_path,)
+        draw_pose_video(pose_dir, save_path, 768,ori_frames=video_frame_crop if if_draw_ori_frame else None,fps=tgt_fps)
+        pose = dict(pose_dir=pose_dir,tgt_fps=tgt_fps)
+        return (pose,save_path,)
 
 
 class EchoMimicV2Node:
@@ -399,9 +404,6 @@ class EchoMimicV2Node:
                 "context_overlap":("INT",{
                     "default":3
                 }),
-                "fps":("INT",{
-                    "default":24
-                }),
                 "if_low_varm":("BOOLEAN",{
                     "default":False
                 }),
@@ -436,7 +438,7 @@ class EchoMimicV2Node:
         return new_image
 
     def gen_video(self,refimg,driving_audio,pose,duration,steps,cfg,context_frames,
-                  context_overlap,fps,if_low_varm,store_in_varm,seed):
+                  context_overlap,if_low_varm,store_in_varm,seed):
         weight_dtype = torch.float16
         infer_config = OmegaConf.load(osp.join(now_dir,"echomimicv2/configs/inference/inference_v2.yaml"))
         os.makedirs(save_dir,exist_ok=True)
@@ -520,8 +522,9 @@ class EchoMimicV2Node:
         inputs_dict = {
             "refimg":img.name,
             "audio":audio.name,
-            "pose":pose
+            "pose":pose['pose_dir']
         }
+        fps = pose['tgt_fps']
         print('Pose:', inputs_dict['pose'])
         print('Reference:', inputs_dict['refimg'])
         print('Audio:', inputs_dict['audio'])
