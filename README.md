@@ -12,7 +12,7 @@ We do not hold any responsibility for any illegal usage of the codebase. Please 
 ## 模型
 「EchoMimicV2.zip」链接：https://pan.quark.cn/s/1570b0d96b0d
 ## 手把手安装教程
-正在做
+[【AI浮世绘免费课程第2课从源码安装EchoMimicV2节点，真手把手，免费带你在Windows系统安装，支持自定义手势】]( https://www.bilibili.com/video/BV1iUz2YPER7)
 
 
 ## 云端教程
