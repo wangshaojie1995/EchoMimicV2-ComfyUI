@@ -9,8 +9,11 @@ We do not hold any responsibility for any illegal usage of the codebase. Please 
 - 分片推理,动作自循环，显著降低显存占用且不限推理音频长度
     - [【ComfyUI节点EchoMimicV2更新1127一键包，支持长音频分片推理，显著降低显存占用，8GB也能玩儿】](https://www.bilibili.com/video/BV11XzVYpEka)
 
+## 模型
+「EchoMimicV2.zip」链接：https://pan.quark.cn/s/1570b0d96b0d
 ## 手把手安装教程
 正在做
+
 
 ## 云端教程
 [【点点鼠标就能使用的EchoMimicV2自动生成手势、生成绿幕的数字人工作流】](https://www.bilibili.com/video/BV1h8BvY9ExR)
