@@ -8,3 +8,5 @@ matplotlib
 accelerate
 mediapipe
 torchao;sys_platform!='win32'
+IPython
+wheel
