@@ -333,7 +333,8 @@ class EchoMimicV2PoseNode:
         ## 
         if pose == "default":
            pose_dir =  osp.join(now_dir,"echomimicv2/pose/01")
-           return (pose_dir, )
+           pose = dict(pose_dir=pose_dir,tgt_fps=tgt_fps)
+           return (pose,driving_pose,)
         os.makedirs(save_dir,exist_ok=True)
         pose_dir = osp.join(save_dir,"DWPose/pose",pose)
         save_path = osp.join(save_dir,"DWPose","pose_"+Path(driving_pose).name)
